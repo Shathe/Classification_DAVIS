@@ -17,7 +17,7 @@ args = parser.parse_args()
 
 epochs = 250
 learning_rate = 0.001
-n_batches = 4
+n_batches = 8
 n_classes = 0
 train_samples = 60000
 test_samples = 10000
