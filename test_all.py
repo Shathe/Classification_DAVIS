@@ -1,15 +1,8 @@
-import tensorflow as tf
-from tflearn.layers.conv import global_avg_pool
-from tensorflow.contrib.layers import batch_norm, flatten
-from tensorflow.contrib.framework import arg_scope
-import numpy as np
-from Layers import *
 from DenseNet import *
 import random
 import os
 import argparse
 from Loader import Loader
-import cv2
 random.seed(os.urandom(9))
 #mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
@@ -86,6 +79,7 @@ with tf.Session() as sess:
             count = count + 1
             x_test = loader.X_test[i:i+batch_size, :, :, :]
             y_test = loader.Y_test[i:i+batch_size, :]
+            x_test = x_test.astype(np.float16)/255 - 0.5
 
             test_feed_dict = {
                 x: x_test,

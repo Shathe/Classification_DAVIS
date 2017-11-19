@@ -1,13 +1,4 @@
-import tensorflow as tf
-from tflearn.layers.conv import global_avg_pool
-from tensorflow.examples.tutorials.mnist import input_data
-from tensorflow.contrib.layers import batch_norm, flatten
-from tensorflow.contrib.framework import arg_scope
-import numpy as np
 from Layers import *
-import random
-import os
-
 
 # Hyperparameter
 growth_k = 12

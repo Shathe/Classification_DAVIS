@@ -11,59 +11,49 @@ import argparse
 from Loader import Loader
 from imgaug import augmenters as iaa
 import imgaug as ia
+from augmenters import get_augmenter
 
 random.seed(os.urandom(9))
 
-# python train_tensorflow --dataset Datasets/MNIST-Normal/ --dimensions 3
+# tensorboard --logdir=train:./gs/train,test:./logs/test/
+# python train.py --dataset ./MNIST-Normal/ --dimensions 3 --augmentation True --tensorboard True
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", help="Dataset to train")  # 'Datasets/MNIST-Big/'
 parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample")
+parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=False)
+parser.add_argument("--augmentation", help="Image augmentation", default=False)
+parser.add_argument("--init_lr", help="Initial learning rate", default=5e-4)
+parser.add_argument("--batch_size", help="batch_size", default=32)
+parser.add_argument("--epochs", help="Number of epochs to train", default=100)
+parser.add_argument("--width", help="width", default=40)
+parser.add_argument("--height", help="height", default=40)
+parser.add_argument("--dropout_rate", help="dropout_rate", default=0.2)
 args = parser.parse_args()
 
 # Hyperparameter
-init_learning_rate = 5e-4
-dropout_rate = 0.2
-
-# Label & batch_size
-batch_size = 32
-
-total_epochs = 50
-training_samples = 60000
-
-width = 40
-height = 40
+init_learning_rate = float(args.init_lr)
+dropout_rate = float(args.dropout_rate)
+augmentation = args.augmentation
+tensorboard = args.tensorboard
+batch_size = int(args.batch_size)
+total_epochs = int(args.epochs)
+width = int(args.width)
+height = int(args.height)
 channels = int(args.dimensions)
+
+
+
+training_samples = 60000
+test_samples = 10000
 classes = os.listdir(args.dataset + 'TRAIN/')
 n_classes = sum((os.path.isdir(args.dataset + 'TRAIN/' + i) for i in classes))
-print(str(n_classes) + ' clases a entrenar')
+print(str(n_classes) + ' Classes to train')
 
-loader = Loader(Dataset=args.dataset, train_samples=0, test_samples=0, n_classes=n_classes, classes=classes,
-                N=args.dimensions, height=height, width=width)
+loader = Loader(Dataset=args.dataset, train_samples=training_samples, test_samples=test_samples, n_classes=n_classes, classes=classes,
+                N=args.dimensions, height=height, width=width, batches_loading=True)
 
-'''
-#Augmentation. (Yet to edit with Chema's code)los valores aleatorios no sirven porque solo se ejecutan una vez
-def augmentation(x,  height=height, width=width, training=True, flips=True, rotate_angle=90, color_augmentation=False, shift_x=0, shift_y=0, ratio_augmentation=1):
-	if training:
-		if random.random() < ratio_augmentation:
-			if flips:
-				x = tf.map_fn(lambda img: tf.image.random_flip_left_right(img), x)
-				x = tf.map_fn(lambda img: tf.image.random_flip_up_down(img), x)
 
-			x = tf.contrib.image.rotate(x, random.randint(-rotate_angle, rotate_angle) , interpolation= "BILINEAR")
-			if color_augmentation:
-				x = tf.image.random_saturation( x, 0, 0.2, seed=9 )
-				x = tf.image.random_hue( x, 0.2, seed=9 )  
-				x = tf.image.random_contrast( x, 0, 0.2, seed=9 )
-				x = tf.image.random_brightness( x, 0.2, seed=9 )
-			tx = random.randint(-shift_x, shift_x)
-			ty = random.randint(-shift_y, shift_y)
-			transforms = [1, 0, tx, 0, 1, ty, 0, 0]
-			x = tf.contrib.image.transform(x, transforms, interpolation="BILINEAR")
-
-	x = tf.image.resize_image_with_crop_or_pad(x, height, width)
-
-	return x
-'''
 
 # Necesario apra algunas operaciones como dropouts que funcionan diferente dependiendo de si es training o testing
 training_flag = tf.placeholder(tf.bool)
@@ -90,87 +80,50 @@ train = optimizer.minimize(cost)
 correct_prediction = tf.equal(tf.argmax(output, 1), tf.argmax(label, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-tf.summary.scalar('loss', cost)
-tf.summary.scalar('accuracy', accuracy)
-tf.summary.scalar('learning_rate', learning_rate)
-tf.summary.image('input', batch_images)
 
-'''
-for op in tf.get_default_graph().get_operations():
-    try:
-        op_var = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, op.name)
-        if op_var != []:
-            #print(op_var)
-            tf.summary.histogram(op.name, op_var)
+if tensorboard:
+    # Scalar summaries
+    tf.summary.scalar('loss', cost)
+    tf.summary.scalar('accuracy', accuracy)
+    tf.summary.scalar('learning_rate', learning_rate)
 
-        else:
+    #Input summary
+    if args.dimensions == 3:
+        tf.summary.image('input', batch_images, max_outputs=10)
+    else:
+        tf.summary.image('input_0-3', batch_images[:,:,:,0:3], max_outputs=10)
+
+    # FIRST LAYER kernels and all the trainable ops
+    for op in tf.get_default_graph().get_collection(tf.GraphKeys.TRAINABLE_VARIABLES):
+        try:
+            if 'kernel' in op.name and op.shape[2] == args.dimensions: # FIRST LAYER kernels
+            	if args.dimensions ==1:
+            			weights_transposed = tf.transpose(op, [3, 0, 1, 2])
+	                    tf.summary.image(op.name + '_' + str(index), weights_transposed[:,:,:, 0], max_outputs=10)
+            	else:
+	                for index in xrange(int(op.shape[2]/3)):
+	                    init=index*3
+	                    final=(index+1)*3
+	                    '''
+	                     x_min = tf.reduce_min(weights)
+	                      x_max = tf.reduce_max(weights)
+	                      weights_0_to_1 = (weights - x_min) / (x_max - x_min)
+	                      weights_0_to_255_uint8 = tf.image.convert_image_dtype (weights_0_to_1, dtype=tf.uint8)
+	                    '''
+	                    weights_transposed = tf.transpose(op, [3, 0, 1, 2])
+	                    tf.summary.image(op.name + '_' + str(index), weights_transposed[:,:,:, init:final], max_outputs=10)
+        except:
             pass
-
-    except:
-        pass 
-'''
+        # all the trainable ops
+        tf.summary.histogram(op.name, op)
 
 
 
-for op in tf.get_default_graph().get_collection(tf.GraphKeys.TRAINABLE_VARIABLES):
-    #tf.summary.histogram(op.name, op)
-    pass
+
+augmenter_seq = get_augmenter(name = 'DAVIS')
 
 
 saver = tf.train.Saver(tf.global_variables())
-
-alot = lambda aug: iaa.Sometimes(0.80, aug)
-sometimes = lambda aug: iaa.Sometimes(0.50, aug)
-few = lambda aug: iaa.Sometimes(0.20, aug)
-seq_rgb = iaa.Sequential([
-
-    iaa.Fliplr(0.25),  # horizontally flip 50% of the images
-    iaa.Flipud(0.25),  # horizontally flip 50% of the images
-    sometimes(iaa.Add((-30, 30))),
-    sometimes(iaa.Multiply((0.80,1.20), per_channel=False)),
-    sometimes(iaa.GaussianBlur(sigma=(0, 0.20))),
-    sometimes(iaa.CoarseDropout((0.0, 0.10), size_percent=(0.00, 0.20), per_channel=0.5)),
-    sometimes(iaa.ContrastNormalization((0.7,1.4))),
-    sometimes(iaa.Affine(
-        scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
-        # scale images to 80-120% of their size, individually per axis
-        translate_percent={"x": (-0.20, 0.2), "y": (-0.2, 0.2)},
-        # translate by -20 to +20 percent (per axis)
-        rotate=(-45, 45),  # rotate by -45 to +45 degrees
-        order=[0, 1],  # use nearest neighbour or bilinear interpolation (fast)
-        cval=(0, 255),  # if mode is constant, use a cval between 0 and 255
-        mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
-    ))])
-
-seq_multi = iaa.Sequential([
-
-    # iaa.Fliplr(0.5),  # horizontally flip 50% of the images
-    # iaa.Flipud(0.5),  # horizontally flip 50% of the images
-    #sometimes(iaa.CoarseDropout((0.0, 0.10), size_percent=(0.00, 0.20), per_channel=0.5)),
-
-    sometimes(iaa.Affine(
-        # scale images to 80-120% of their size, individually per axis
-        # translate by -20 to +20 percent (per axis)
-        rotate=(-45, 45),  # rotate by -45 to +45 degrees
-    ))
-])
-'''
-sometimes(iaa.Affine(
-    scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
-    # scale images to 80-120% of their size, individually per axis
-    translate_percent={"x": (-0.20, 0.2), "y": (-0.2, 0.2)},
-    # translate by -20 to +20 percent (per axis)
-    rotate=(-45, 45),  # rotate by -45 to +45 degrees
-    order=[0, 1],  # use nearest neighbour or bilinear interpolation (fast)
-    cval=(0, 255),  # if mode is constant, use a cval between 0 and 255
-    mode=ia.ALL  # use any of scikit-image's warping modes (see 2nd image from the top for examples)
-))
-'''
-
-
-
-
-
 
 with tf.Session() as sess:
     ckpt = tf.train.get_checkpoint_state('./model')
@@ -191,16 +144,21 @@ with tf.Session() as sess:
         # Simple learning rate decay
         if epoch == (total_epochs * 0.35) or epoch == (total_epochs * 0.65) or epoch == (total_epochs * 0.85):
             epoch_learning_rate = epoch_learning_rate / 10
+            batch_size = batch_size * 2
 
         total_batch = int(training_samples / batch_size)
 
         # steps in every epoch
         for step in range(total_batch):
             # batch_x, batch_y = mnist.train.next_batch(batch_size)
-            batch_x, batch_y = loader.get_batch(size=batch_size, train=True)
+            if augmentation :
+                batch_x, batch_y = loader.get_batch(size=batch_size, train=True, percentage_noise=random.random()/12)
+                batch_x = augmenter_seq.augment_images(batch_x)
+            else:
+                batch_x, batch_y = loader.get_batch(size=batch_size, train=True)
 
+            batch_x = batch_x.astype(np.float16)/255 - 0.5
 
-            images_aug = seq_multi.augment_images(batch_x)
 
             train_feed_dict = {
                 x: batch_x,
@@ -209,28 +167,28 @@ with tf.Session() as sess:
                 training_flag: True
             }
 
-
-
-
             _, loss = sess.run([train, cost], feed_dict=train_feed_dict)
 
-            if step % 100 == 0:
+            if step != 0 and step % 100 == 0:
                 global_step += 100
                 train_summary, train_accuracy = sess.run([merged, accuracy], feed_dict=train_feed_dict)
                 # accuracy.eval(feed_dict=feed_dict)
                 print("Step:", step, "Loss:", loss, "Training accuracy:", train_accuracy)
                 writer_train.add_summary(train_summary, global_step=epoch)
 
-        batch_x_test, batch_y_test = loader.get_batch(size=batch_size, train=False)
-        test_feed_dict = {
-            x: batch_x_test,
-            label: batch_y_test,
-            learning_rate: epoch_learning_rate,
-            training_flag: False
-        }
+                batch_x_test, batch_y_test = loader.get_batch(size=batch_size, train=False)
+                batch_x_test = batch_x_test.astype(np.float16)/255 - 0.5
 
-        test_summary, accuracy_rates = sess.run([merged, accuracy], feed_dict=test_feed_dict)
-        writer_test.add_summary(test_summary, global_step=epoch)
+                test_feed_dict = {
+                    x: batch_x_test,
+                    label: batch_y_test,
+                    learning_rate: epoch_learning_rate,
+                    training_flag: False
+                }
+
+                test_summary, accuracy_rates = sess.run([merged, accuracy], feed_dict=test_feed_dict)
+                writer_test.add_summary(test_summary, global_step=epoch)
+                print('Step:', '%04d' % (step), '/ Accuracy =', accuracy_rates)
 
         print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy =', accuracy_rates)
         saver.save(sess=sess, save_path='./model/dense.ckpt')

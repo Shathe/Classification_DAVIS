@@ -79,17 +79,16 @@ with tf.Session() as sess:
     if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
         saver.restore(sess, ckpt.model_checkpoint_path)
         batch_x_test, batch_y_test = loader.get_batch(size=1, train=False)
-        cv2.imshow('image',batch_x_test[0,:,:,:])
+        batch_x_test = batch_x_test.astype(np.float16)/255 - 0.5
+
+        cv2.imshow('image',batch_x_test[0,:,:,:].astype(np.uint8))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         
         predictions = sess.run(output, feed_dict={x: batch_x_test, training_flag : False})
         predicted_class = np.argmax(predictions)
 
-        print('Clase real =', loader.classes[predicted_class])
-        cv2.imshow('image',batch_x_test[0,:,:,:])
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        print('Clase real =', loader.classes[predicted_class]) 
     else:
         print("No se encuentran los pesos")
 
