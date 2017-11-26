@@ -1,9 +1,11 @@
 from DenseNet import *
 import random
 import os
+import cv2
 import argparse
 from Loader import Loader
 random.seed(os.urandom(9))
+import numpy as np
 #mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
 # python train_tensorflow --dataset Datasets/MNIST-Normal/ --dimensions 3
@@ -68,7 +70,7 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 saver = tf.train.Saver(tf.global_variables())
 
 with tf.Session() as sess:
-    ckpt = tf.train.get_checkpoint_state('./model')
+    ckpt = tf.train.get_checkpoint_state('./model') #/best
     if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
         saver.restore(sess, ckpt.model_checkpoint_path)
         loader.load_data(train=False, test=True)
@@ -87,12 +89,14 @@ with tf.Session() as sess:
                 training_flag : False
             }
             accuracy_rates = sess.run([accuracy], feed_dict=test_feed_dict)
+
             accuracy_sum = accuracy_sum + accuracy_rates[0]
-            '''
-            cv2.imshow('image',x_test[0,:,:,:])
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-            '''
+            if accuracy_rates[0] < 0.2:
+		    
+		    cv2.imshow('image',loader.X_test[i, :,:,:].astype(np.uint8))
+		    cv2.waitKey(0)
+		    cv2.destroyAllWindows()
+            
         
         print("Accuracy total: " + str(accuracy_sum/count))
     else:

@@ -1,5 +1,8 @@
 Datasets/
-
+MNIST-Normal/
+logs/
+model/
+*.tar.gz
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
