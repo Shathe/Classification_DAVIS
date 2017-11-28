@@ -17,12 +17,12 @@ import tensorflow.contrib.slim as slim
 
 random.seed(os.urandom(9))
 
-# tensorboard --logdir=train:./gs/train,test:./logs/test/
+# tensorboard --logdir=train:./logs/train,test:./logs/test/
 # python train.py --dataset ./MNIST-Normal/ --dimensions 3 --augmentation True --tensorboard True
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", help="Dataset to train")  # 'Datasets/MNIST-Big/'
-parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample")
+parser.add_argument("--dataset", help="Dataset to train", default='./Datasets/MNIST-Normal/')  # 'Datasets/MNIST-Big/'
+parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 parser.add_argument("--tensorboard", help="Monitor with Tensorboard", default=False)
 parser.add_argument("--augmentation", help="Image augmentation", default=False)
 parser.add_argument("--init_lr", help="Initial learning rate", default=1e-3)
@@ -66,7 +66,7 @@ label = tf.placeholder(tf.float32, shape=[None, n_classes])
 # Para poder modificarlo
 learning_rate = tf.placeholder(tf.float32, name='learning_rate')
 
-output = DenseNet(x=batch_images, nb_blocks=2, filters=12, n_classes=n_classes, training=training_flag).model
+output = DenseNet(x=batch_images, nb_blocks=4, filters=40, n_classes=n_classes, training=training_flag).model
 #output=tf.keras.applications.mobilenet.MobileNet(alpha=1.0,input_tensor=batch_images, classes=n_classes, weights=None)
 # output = nasnet.build_nasnet_mobile(batch_images, n_classes ,is_training=training_flag)
 
@@ -90,12 +90,13 @@ train = optimizer.minimize(cost)
 correct_prediction = tf.equal(tf.argmax(output, 1), tf.argmax(label, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-if tensorboard:
-    # Scalar summaries
-    tf.summary.scalar('loss', cost)
-    tf.summary.scalar('accuracy', accuracy)
-    tf.summary.scalar('learning_rate', learning_rate)
 
+# Scalar summaries always
+tf.summary.scalar('loss', cost)
+tf.summary.scalar('accuracy', accuracy)
+tf.summary.scalar('learning_rate', learning_rate)
+
+if tensorboard:
     # Input summary
     if args.dimensions == 3:
         tf.summary.image('input', batch_images, max_outputs=10)
@@ -141,8 +142,8 @@ print("Total parameters of the net: " + str(total_parameters))
 
 
 
-augmenter_seq = get_augmenter(name='DAVIS')
-
+augmenter_seq = get_augmenter(name='caltech')
+show_each_steps = 100
 saver = tf.train.Saver(tf.global_variables())
 
 with tf.Session() as sess:
@@ -169,7 +170,7 @@ with tf.Session() as sess:
             batch_size = batch_size * 2
 
         total_batch = int(training_samples / batch_size)
-
+	val_loss_acum = 0
         # steps in every epoch
         for step in range(total_batch):
             # batch_x, batch_y = mnist.train.next_batch(batch_size)
@@ -190,12 +191,12 @@ with tf.Session() as sess:
 
             _, loss = sess.run([train, cost], feed_dict=train_feed_dict)
 
-            if step % 100 == 0:
-                global_step += 100
+            if step % show_each_steps == 0:
+                global_step += show_each_steps
                 train_summary, train_accuracy = sess.run([merged, accuracy], feed_dict=train_feed_dict)
                 # accuracy.eval(feed_dict=feed_dict)
                 print("Step:", step, "Loss:", loss, "Training accuracy:", train_accuracy)
-                writer_train.add_summary(train_summary, global_step=global_step)
+                writer_train.add_summary(train_summary, global_step=global_step/show_each_steps)
 
                 batch_x_test, batch_y_test = loader.get_batch(size=batch_size, train=False)
                 batch_x_test = batch_x_test.astype(np.float16) / 255 - 0.5
@@ -208,14 +209,15 @@ with tf.Session() as sess:
                 }
 
                 test_summary, accuracy_rates, val_loss = sess.run([merged, accuracy, cost], feed_dict=test_feed_dict)
-                writer_test.add_summary(test_summary, global_step=global_step)
+                writer_test.add_summary(test_summary, global_step=global_step/show_each_steps)
                 print('Step:', '%04d' % (step), '/ Accuracy =', accuracy_rates)
-                if best_val_loss > val_loss:
-                    best_val_loss = val_loss
-                    saver.save(sess=sess, save_path='./model/best/dense.ckpt')
+		val_loss_acum = val_loss_acum + val_loss
 
         print('Epoch:', '%04d' % (epoch + 1), '/ Accuracy =', accuracy_rates)
         saver.save(sess=sess, save_path='./model/dense.ckpt')
+        if best_val_loss > val_loss_acum:
+            best_val_loss = val_loss_acum
+            saver.save(sess=sess, save_path='./model/best/dense.ckpt')
     # writer.add_summary(test_summary, global_step=epoch)
 
 

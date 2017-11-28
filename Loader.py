@@ -31,7 +31,7 @@ class Loader:
 
     # Gets a sample (combinations of the temporal images of the dataset of the same sample) given an identifier
     # The first index is the first index of the sample. Each sample has several images identified with an index
-    def get_sample_from_idenfitier(self, identifier, class_folder, first_index=3):
+    def get_sample_from_idenfitier(self, identifier, class_folder, first_index=4):
 
         sample = np.zeros([self.height, self.width, self.N], dtype=np.float16)
         sample[:, :, :] = 127.5
@@ -114,24 +114,23 @@ class Loader:
 
         x = np.zeros([size, self.height, self.width, self.N], dtype=np.float16)
         y = np.zeros([size], dtype=np.uint8)
-        for index in xrange(size):
+        for indexx in xrange(size):
             # Aleatoriamente elegir una clase.
             class_folder = random.choice(os.listdir(self.Dataset + folder_to_look))
 
             class_name = ntpath.basename(class_folder)
             class_label = self.classes.index(class_name)
-
             # Aleatoriamente elegir un fichero (y cargar las N dimensiones
-            file = random.choice(os.listdir(self.Dataset + folder_to_look + class_folder))
+            file_chosen = random.choice(os.listdir(self.Dataset + folder_to_look + class_folder))
 
-            filename = ntpath.basename(file)
+            filename = ntpath.basename(file_chosen)
             sampleIdentifier = filename.split('_')[0]
             sample = self.get_sample_from_idenfitier(sampleIdentifier, self.Dataset + folder_to_look + class_folder)
             # Introduces random noise (off and on events)
             sample = self.ruido_aleatorio(sample, percentage_noise)
 
-            x[index, :, :, :] = sample
-            y[index] = class_label
+            x[indexx, :, :, :] = sample
+            y[indexx] = class_label
 
         y = to_categorical(y, num_classes=self.n_classes)
         second = time.time()

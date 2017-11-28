@@ -70,9 +70,13 @@ class DenseNet():
 
 
 
-        for i in range(self.nb_blocks) :
-            x = self.dense_block(input_x=x, nb_layers=4, layer_name='dense_'+str(i))
-            x = self.transition_layer(x, scope='trans_'+str(i))
+
+        x = self.dense_block(input_x=x, nb_layers=6, layer_name='dense_'+str(1))
+        x = self.transition_layer(x, scope='trans_'+str(1))
+        x = self.dense_block(input_x=x, nb_layers=12, layer_name='dense_'+str(2))
+        x = self.transition_layer(x, scope='trans_'+str(2))
+        x = self.dense_block(input_x=x, nb_layers=48, layer_name='dense_'+str(3))
+        x = self.transition_layer(x, scope='trans_'+str(3))
 
 
       

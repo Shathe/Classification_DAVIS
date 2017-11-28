@@ -10,8 +10,8 @@ import numpy as np
 
 # python train_tensorflow --dataset Datasets/MNIST-Normal/ --dimensions 3
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", help="Dataset to train") # 'Datasets/MNIST-Big/'
-parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample")
+parser.add_argument("--dataset", help="Dataset to train", default='./Datasets/MNIST-Normal/')  # 'Datasets/MNIST-Big/'
+parser.add_argument("--dimensions", help="Temporal dimensions to get from each sample", default=3)
 args = parser.parse_args()
 
 
@@ -23,7 +23,7 @@ dropout_rate = 0.2
 batch_size = 32
 
 total_epochs = 50
-test_examples = 60000 
+test_examples = 10000 
 
 width = 40
 height = 40
@@ -70,7 +70,7 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 saver = tf.train.Saver(tf.global_variables())
 
 with tf.Session() as sess:
-    ckpt = tf.train.get_checkpoint_state('./model') #/best
+    ckpt = tf.train.get_checkpoint_state('./model/best') #/best
     if ckpt and tf.train.checkpoint_exists(ckpt.model_checkpoint_path):
         saver.restore(sess, ckpt.model_checkpoint_path)
         loader.load_data(train=False, test=True)
@@ -91,11 +91,7 @@ with tf.Session() as sess:
             accuracy_rates = sess.run([accuracy], feed_dict=test_feed_dict)
 
             accuracy_sum = accuracy_sum + accuracy_rates[0]
-            if accuracy_rates[0] < 0.2:
-		    
-		    cv2.imshow('image',loader.X_test[i, :,:,:].astype(np.uint8))
-		    cv2.waitKey(0)
-		    cv2.destroyAllWindows()
+
             
         
         print("Accuracy total: " + str(accuracy_sum/count))
